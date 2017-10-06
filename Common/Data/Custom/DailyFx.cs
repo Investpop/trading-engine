@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -36,6 +37,7 @@ namespace QuantConnect.Data.Custom
     public class DailyFx : BaseData
     {
         JsonSerializerSettings _jsonSerializerSettings;
+        private readonly Dictionary<string, DailyFx> _previous = new Dictionary<string, DailyFx>();
 
         /// <summary>
         /// Title of the event.
@@ -57,6 +59,14 @@ namespace QuantConnect.Data.Custom
         /// </remarks>
         [JsonProperty(PropertyName = "displayTime")]
         public DateTimeOffset DisplayTime;
+
+        /// <summary>
+        /// Date/time of the event
+        /// </summary>
+        public DateTimeOffset EventDateTime
+        {
+            get { return DisplayDate.Date.Add(DisplayTime.TimeOfDay); }
+        }
 
         /// <summary>
         /// Importance assignment from FxDaily API.
@@ -161,23 +171,48 @@ namespace QuantConnect.Data.Custom
         /// <returns></returns>
         public override BaseData Reader(SubscriptionDataConfig config, string content, DateTime date, bool isLiveMode)
         {
+            // clean old entries from memory
+            var oldEntries = _previous.Where(kvp => kvp.Value.DisplayDate.UtcDateTime < date.Date).ToList();
+            oldEntries.ForEach(oe => _previous.Remove(oe.Key));
+
             var dailyfxList = JsonConvert.DeserializeObject<List<DailyFx>>(content, _jsonSerializerSettings);
 
+            var updated = new List<DailyFx>();
             foreach (var dailyfx in dailyfxList)
             {
+                DailyFx previous;
+                if (_previous.TryGetValue(MakeKey(dailyfx), out previous))
+                {
+                    // if the event hasn't been updated then don't emit it
+                    if (!dailyfx.HasChangedSince(previous))
+                    {
+                        continue;
+                    }
+                }
+
+                updated.Add(dailyfx);
+
                 dailyfx.Symbol = config.Symbol;
 
-                // Custom data format without settings in market hours are assumed UTC.
-                dailyfx.Time = dailyfx.DisplayDate.Date.AddHours(dailyfx.DisplayTime.TimeOfDay.TotalHours);
+                if (isLiveMode)
+                {
+                    // Live mode set the time to now, this update just happened
+                    dailyfx.Time = DateTime.UtcNow;
+                }
+                else
+                {
+                    // Custom data format without settings in market hours are assumed UTC.
+                    dailyfx.Time = dailyfx.DisplayDate.Date.AddHours(dailyfx.DisplayTime.TimeOfDay.TotalHours);
+                }
 
                 // Assign a value to this event:
                 // Fairly meaningless between unrelated events, but meaningful with the same event over time.
                 dailyfx.Value = 0;
                 try
                 {
-                    if (!string.IsNullOrEmpty(Actual))
+                    if (!string.IsNullOrEmpty(dailyfx.Actual))
                     {
-                        dailyfx.Value = Convert.ToDecimal(RemoveSpecialCharacters(Actual));
+                        dailyfx.Value = Convert.ToDecimal(RemoveSpecialCharacters(dailyfx.Actual));
                     }
                 }
                 catch
@@ -185,7 +220,7 @@ namespace QuantConnect.Data.Custom
                 }
             }
 
-            return new BaseDataCollection(date, config.Symbol, dailyfxList);
+            return new BaseDataCollection(date, config.Symbol, updated);
         }
 
         /// <summary>
@@ -235,7 +270,25 @@ namespace QuantConnect.Data.Custom
         /// <returns></returns>
         public override string ToString()
         {
-            return string.Format("DailyFx [{0} {1} {2} {3} {4}]", Time.ToString("u"), Title, Currency, Importance, Meaning);
+            return string.Format("DailyFx [{0} {1} {2} {3} {4}]", EventDateTime.ToString("u"), Title, Currency, Importance, Meaning);
+        }
+
+        /// <summary>
+        /// Determines whether or not the values of this event have changed since the previous
+        /// </summary>
+        public bool HasChangedSince(DailyFx previous)
+        {
+            return Importance != previous.Importance
+                || Meaning != previous.Meaning
+                || Actual != previous.Actual
+                || Forecast != previous.Forecast
+                || Previous != previous.Previous
+                || Commentary != previous.Commentary;
+        }
+
+        private static string MakeKey(DailyFx data)
+        {
+            return data.EventDateTime + data.Title;
         }
     }
 
