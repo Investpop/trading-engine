@@ -1,11 +1,11 @@
 ﻿/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,8 +29,8 @@ namespace QuantConnect.Data.Custom
     /// </summary>
     /// <remarks>
     /// Data sourced by Thomson Reuters
-    /// DailyFX provides traders with an easy to use and customizable real-time calendar that updates automatically during 
-    /// announcements.Keep track of significant events that traders care about.As soon as event data is released, the DailyFX 
+    /// DailyFX provides traders with an easy to use and customizable real-time calendar that updates automatically during
+    /// announcements.Keep track of significant events that traders care about.As soon as event data is released, the DailyFX
     /// calendar automatically updates to provide traders with instantaneous information that they can use to formulate their trading decisions.
     /// </remarks>
     public class DailyFx : BaseData
@@ -47,7 +47,7 @@ namespace QuantConnect.Data.Custom
         /// Date the event was displayed on DailyFX
         /// </summary>
         [JsonProperty(PropertyName = "displayDate")]
-        public DateTimeOffset DisplayDate; 
+        public DateTimeOffset DisplayDate;
 
         /// <summary>
         /// Time of the day the event was displayed.
@@ -127,7 +127,7 @@ namespace QuantConnect.Data.Custom
         }
 
         /// <summary>
-        /// Get the source URL for this date. 
+        /// Get the source URL for this date.
         /// </summary>
         /// <remarks>
         ///     FXCM API allows up to 3mo blocks at a time, so we'll return the same URL for each
@@ -147,7 +147,7 @@ namespace QuantConnect.Data.Custom
             {
                 url += GetQuarter(date);
             }
-            
+
             return new SubscriptionDataSource(url, SubscriptionTransportMedium.Rest, FileFormat.Collection);
         }
 
@@ -170,7 +170,7 @@ namespace QuantConnect.Data.Custom
                 // Custom data format without settings in market hours are assumed UTC.
                 dailyfx.Time = dailyfx.DisplayDate.Date.AddHours(dailyfx.DisplayTime.TimeOfDay.TotalHours);
 
-                // Assign a value to this event: 
+                // Assign a value to this event:
                 // Fairly meaningless between unrelated events, but meaningful with the same event over time.
                 dailyfx.Value = 0;
                 try
@@ -209,7 +209,7 @@ namespace QuantConnect.Data.Custom
             if (date.Month < 4)
             {
                 start += "0101";
-                end += "03312359"; 
+                end += "03312359";
             }
             else if (date.Month < 7)
             {
